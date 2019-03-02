@@ -4,6 +4,7 @@ import numpy as np
 from IPython.display import clear_output
 
 
+
 def read_queries_crash(path):
     f = open(path, 'r')
     queries = []
