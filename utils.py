@@ -31,22 +31,26 @@ def split_to_train_and_validation(data, valid_size=0.2):
     return train, valid
 
 
-def transform(data):
+def transform(emb, data):
     """
     transforms input requests to pairs of prefix and next word
     """
     prefixs = []
     next_words = []
+    count = 0
     
     for sent in data:
         pref = []
         pref.append(sent[0])
         for i in range(1, len(sent)):
-            prefixs.append(deepcopy(pref))
-            next_words.append(sent[i])
+            if sent[i] in emb.vocab:
+                prefixs.append(deepcopy(pref))
+                next_words.append(sent[i])
+            else:
+                count += 1
             pref.append(sent[i])
             
-    return prefixs, next_words
+    return prefixs, next_words, count
 
 
 def as_matrix(emb, emb_size, data, max_len=None):    
@@ -82,8 +86,19 @@ def iterate_minibatches(emb, emb_size, prefixs, next_words, batch_size=256, shuf
     
     while True:
         indices = np.arange(len(prefixs))
+        lens = np.array(list(map(len, prefixs)))
+        lens = lens[indices]
+        lens = np.hstack([indices.reshape(-1, 1), lens.reshape(-1, 1)])
+        indices = np.array(sorted(lens, key=lambda x : x[1]))
+        indices = indices[:, 0]
+    
         if shuffle:
             indices = np.random.permutation(indices)
+            lens = np.array(list(map(len, prefixs)))
+            lens = lens[indices]
+            lens = np.hstack([indices.reshape(-1, 1), lens.reshape(-1, 1)])
+            indices = np.array(sorted(lens, key=lambda x : x[1]))
+            indices = indices[:, 0]
 
         for start in range(0, len(indices), batch_size):
             batch = as_matrix(emb, emb_size, prefixs[indices[start : start + batch_size]])
@@ -92,7 +107,7 @@ def iterate_minibatches(emb, emb_size, prefixs, next_words, batch_size=256, shuf
         
         if not cycle: break
             
-def calculate_accuracy(model, emb, emb_size, batch_size, test_prefixs, test_next_words):  
+def calculate_accuracy(model, emb, emb_size, shift, batch_size, test_prefixs, test_next_words):  
     all_accr = 0
     all_count = 0
     for batch_x, batch_y in iterate_minibatches(emb, emb_size, test_prefixs, test_next_words, batch_size=batch_size, shuffle=False):
